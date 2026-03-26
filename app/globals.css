@@ -1,0 +1,323 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.cv-content {
+  font-family: Garamond, "Adobe Garamond Pro", "Garamond Premier Pro", var(--font-cv-serif), serif;
+  color: #0f0f0f;
+  --cv-line-height: 1.25;
+  --cv-line-gap: 0.12rem;
+  --cv-entry-gap: 0.72rem;
+  --cv-link-color: #1155cc;
+}
+
+.cv-content .cv-section-action-button {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button.border-zinc-300:not(:disabled):hover {
+  background-color: #f4f4f5;
+}
+
+.cv-content .cv-bullet-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.cv-content .cv-bullet-marker {
+  flex: 0 0 0.55rem;
+  font-size: 1em;
+  line-height: var(--cv-line-height);
+}
+
+.cv-content .cv-section .text-sm,
+.cv-content .cv-section .text-base,
+.cv-content .cv-header p,
+.cv-content .cv-section p,
+.cv-content .cv-section a,
+.cv-content .cv-section .cv-bullet-row {
+  line-height: var(--cv-line-height) !important;
+}
+
+.cv-content .cv-header h2 {
+  font-size: 20pt !important;
+  font-weight: 700;
+  text-transform: capitalize;
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+}
+
+.cv-content .cv-header p {
+  font-size: 10pt !important;
+}
+
+.cv-content a {
+  color: var(--cv-link-color) !important;
+  text-decoration: underline;
+}
+
+.cv-content .cv-section > div:first-child {
+  margin-bottom: 0.35rem !important;
+  padding-bottom: 0.08rem !important;
+  border-bottom: 1px solid #000 !important;
+}
+
+.cv-content .cv-section h2 {
+  font-size: 12pt !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.cv-content .cv-section .text-base {
+  font-size: 12pt !important;
+}
+
+.cv-content .cv-section .text-sm {
+  font-size: 11pt !important;
+}
+
+.cv-content .cv-section .space-y-0 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: var(--cv-line-gap) !important;
+}
+
+.cv-content .cv-section .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: var(--cv-entry-gap) !important;
+}
+
+.cv-content .cv-section .cv-entry-list {
+  display: grid;
+  row-gap: var(--cv-entry-gap);
+}
+
+.cv-content .cv-experience-list {
+  row-gap: 0.58rem;
+}
+
+.cv-content .cv-exp-header {
+  margin-bottom: 0.1rem;
+}
+
+.cv-content .cv-exp-role {
+  font-weight: 700 !important;
+}
+
+.cv-content .cv-exp-meta {
+  margin-top: 0.02rem;
+}
+
+.cv-content .cv-exp-company {
+  font-weight: 700 !important;
+}
+
+.cv-content .cv-exp-location,
+.cv-content .cv-exp-sep,
+.cv-content .cv-exp-date {
+  font-weight: 400;
+}
+
+.cv-content .cv-exp-bullets {
+  margin-top: 0.06rem;
+}
+
+.cv-content .cv-exp-tech {
+  margin-top: 0;
+  margin-bottom: 0.02rem;
+  line-height: 1.24 !important;
+}
+
+.cv-content .cv-exp-tech-label {
+  font-weight: 700 !important;
+  color: #000;
+}
+
+.cv-content .cv-exp-tech-value {
+  font-weight: 400 !important;
+  color: #0f0f0f;
+}
+
+.cv-content .cv-exp-bullet-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.34rem;
+  line-height: 1.22 !important;
+}
+
+.cv-content .cv-exp-bullet-marker {
+  flex: 0 0 0.5rem;
+  line-height: 1.22;
+}
+
+.cv-content .cv-education-block {
+  margin-top: 0.02rem;
+}
+
+.cv-content .cv-edu-degree {
+  font-weight: 700 !important;
+  margin-bottom: 0.02rem;
+}
+
+.cv-content .cv-edu-meta {
+  line-height: 1.24 !important;
+}
+
+.cv-content .cv-edu-institution,
+.cv-content .cv-edu-location,
+.cv-content .cv-edu-sep,
+.cv-content .cv-edu-date {
+  font-weight: 400 !important;
+}
+
+.cv-content .cv-projects-list {
+  row-gap: 0.64rem;
+}
+
+.cv-content .cv-projects-list .space-y-0 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0 !important;
+}
+
+.cv-content .cv-project-title {
+  font-weight: 700 !important;
+  margin: 0 !important;
+}
+
+.cv-content .cv-project-link {
+  display: inline-block;
+  margin-top: 0.02rem !important;
+  margin-bottom: 0 !important;
+  color: #1155cc !important;
+  text-decoration: underline;
+  line-height: 1.24 !important;
+}
+
+.cv-content .cv-project-tech {
+  margin-right: 0;
+  margin-left: 0;
+  margin-top: 0.34rem !important;
+  margin-bottom: 0.02rem !important;
+  line-height: 1.24 !important;
+}
+
+.cv-content .cv-project-tech-label {
+  font-weight: 700 !important;
+  color: #000;
+}
+
+.cv-content .cv-project-tech-value {
+  font-weight: 400 !important;
+  color: #0f0f0f;
+}
+
+.cv-content .cv-project-bullets {
+  margin-top: 0.02rem;
+}
+
+.cv-content .cv-project-bullet-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.34rem;
+  line-height: 1.22 !important;
+}
+
+.cv-content .cv-project-bullet-marker {
+  flex: 0 0 0.5rem;
+  line-height: 1.22;
+}
+
+.cv-content .technical-skills-groups .cv-entry {
+  margin-bottom: 0.12rem;
+}
+
+.cv-content .cv-skills-block {
+  margin: 0;
+  line-height: var(--cv-line-height) !important;
+}
+
+.cv-content .cv-skills-heading {
+  display: inline-block;
+  font-weight: 700 !important;
+  color: #000;
+  letter-spacing: 0;
+}
+
+.cv-content .cv-section .cv-entry-list > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0 !important;
+}
+
+@media screen {
+  .cv-content {
+    max-width: 8.5in;
+    margin: 0 auto;
+  }
+}
+
+@media print {
+  :root {
+    --background: #ffffff;
+    --foreground: #000000;
+  }
+
+  body {
+    background: #ffffff;
+    color: #000000;
+  }
+
+  .cv-section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+    break-after: auto !important;
+    page-break-after: auto !important;
+    margin-bottom: 1rem;
+  }
+
+  .cv-content .cv-section .text-sm {
+    font-size: 11pt !important;
+  }
+
+  .cv-content .cv-section .text-base {
+    font-size: 12pt !important;
+  }
+
+  .cv-content .cv-header h2 {
+    font-size: 20pt !important;
+  }
+
+  .cv-content .cv-header p {
+    font-size: 10pt !important;
+  }
+
+  .cv-content .cv-section p {
+    margin: 0 !important;
+  }
+
+  .cv-section > * {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+}
