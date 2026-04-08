@@ -13,6 +13,10 @@ import {
 } from "@/lib/cv-schema";
 import { storage } from "@/lib/storage";
 import { DEFAULT_PROMPT_TEMPLATE } from "@/lib/prompt-template";
+import {
+  MAX_EXPERIENCE_BULLETS,
+  findOverflowingExperienceJobs,
+} from "@/lib/experience-bullets";
 
 const createBooleanMap = (value: boolean): Record<CVSectionKey, boolean> => ({
   headline: value,
@@ -227,6 +231,19 @@ export default function Home() {
     if (!nextValue) {
       toast.error("Section content cannot be empty.");
       return;
+    }
+
+    if (activeEditSection === "workExperience") {
+      const overflows = findOverflowingExperienceJobs(nextValue);
+      if (overflows.length > 0) {
+        const detail = overflows
+          .map((job) => `${job.jobName} (found ${job.count})`)
+          .join(", ");
+        toast.error(
+          `Each job can have at most ${MAX_EXPERIENCE_BULLETS} bullets. Trim: ${detail}.`,
+        );
+        return;
+      }
     }
 
     setSections((prev) => ({
