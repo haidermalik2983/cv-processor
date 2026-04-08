@@ -3,6 +3,7 @@
 import { createAIProvider } from "@/lib/ai-provider";
 import { CV_SECTION_KEYS, CV_SECTION_LABELS, type CVSectionKey } from "@/lib/cv-schema";
 import { truncateExperienceBullets } from "@/lib/experience-bullets";
+import { truncateProjectBullets } from "@/lib/project-bullets";
 import { DEFAULT_PROMPT_TEMPLATE, normalizeEditablePromptTemplate } from "@/lib/prompt-template";
 
 type EnhanceSingleSectionInput = {
@@ -69,6 +70,10 @@ const sanitizeEnhancedContent = (
 
   if (sectionKey === "workExperience" && cleaned) {
     cleaned = truncateExperienceBullets(cleaned).content;
+  }
+
+  if (sectionKey === "projects" && cleaned) {
+    cleaned = truncateProjectBullets(cleaned).content;
   }
 
   return cleaned;

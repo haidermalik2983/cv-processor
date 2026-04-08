@@ -1,27 +1,17 @@
-export const MAX_EXPERIENCE_BULLETS = 5;
+import {
+  MAX_SECTION_BULLETS,
+  type EntryParser,
+  type ParsedBulletEntry,
+  findOverflowingEntries,
+  stripBulletPrefix,
+  truncateSectionBullets,
+} from "./bullet-limits";
+
+export const MAX_EXPERIENCE_BULLETS = MAX_SECTION_BULLETS;
 
 const TECHNOLOGIES_LINE_REGEX = /^technologies\s*:?/i;
 
-const BULLET_PREFIX_REGEX =
-  /^[\s\u00A0\u2022\u2023\u2043\u2219\u25E6\u25AA\u25AB\u25CF\u25CB\u25A0\u25B8\u25B9•◦▪▫●○■▶▷\-*–—]+/u;
-
-const stripBulletPrefix = (value: string) => value.replace(BULLET_PREFIX_REGEX, "").trim();
-
-type ParsedExperienceEntry = {
-  headerLine: string;
-  roleLine: string;
-  technologiesLine: string | null;
-  bullets: string[];
-};
-
-const splitEntries = (content: string): string[][] =>
-  content
-    .trim()
-    .split(/\n\s*\n/)
-    .map((entry) => entry.split("\n").map((line) => line.trim()).filter(Boolean))
-    .filter((entry) => entry.length > 0);
-
-const parseEntry = (lines: string[]): ParsedExperienceEntry => {
+const parseExperienceEntry: EntryParser = (lines): ParsedBulletEntry => {
   const [headerLine = "", roleLine = "", ...rest] = lines;
   let technologiesLine: string | null = null;
   const bullets: string[] = [];
@@ -34,18 +24,29 @@ const parseEntry = (lines: string[]): ParsedExperienceEntry => {
     bullets.push(line);
   }
 
-  return { headerLine, roleLine, technologiesLine, bullets };
-};
+  const displayName = (() => {
+    const header = headerLine.trim();
+    if (header) {
+      const [companyWithLocation = header] = header.split(" — ");
+      const [companyName = companyWithLocation] = companyWithLocation.split(",");
+      const trimmed = companyName.trim();
+      if (trimmed) return trimmed;
+    }
+    return roleLine.trim() || "Untitled job";
+  })();
 
-const entryDisplayName = (entry: ParsedExperienceEntry): string => {
-  const header = entry.headerLine.trim();
-  if (header) {
-    const [companyWithLocation = header] = header.split(" — ");
-    const [companyName = companyWithLocation] = companyWithLocation.split(",");
-    const trimmed = companyName.trim();
-    if (trimmed) return trimmed;
-  }
-  return entry.roleLine.trim() || "Untitled job";
+  return {
+    displayName,
+    bullets,
+    rebuild: (truncatedBullets) => {
+      const out: string[] = [];
+      if (headerLine) out.push(headerLine);
+      if (roleLine) out.push(roleLine);
+      if (technologiesLine) out.push(technologiesLine);
+      out.push(...truncatedBullets);
+      return out;
+    },
+  };
 };
 
 export type ExperienceTruncation = {
@@ -56,30 +57,13 @@ export type ExperienceTruncation = {
 export const truncateExperienceBullets = (
   content: string,
 ): { content: string; truncated: ExperienceTruncation[] } => {
-  const entries = splitEntries(content);
-  const truncated: ExperienceTruncation[] = [];
-
-  const rebuiltEntries = entries.map((rawLines) => {
-    const entry = parseEntry(rawLines);
-    if (entry.bullets.length > MAX_EXPERIENCE_BULLETS) {
-      truncated.push({
-        jobName: entryDisplayName(entry),
-        originalCount: entry.bullets.length,
-      });
-      entry.bullets = entry.bullets.slice(0, MAX_EXPERIENCE_BULLETS);
-    }
-
-    const lines: string[] = [];
-    if (entry.headerLine) lines.push(entry.headerLine);
-    if (entry.roleLine) lines.push(entry.roleLine);
-    if (entry.technologiesLine) lines.push(entry.technologiesLine);
-    lines.push(...entry.bullets);
-    return lines.join("\n");
-  });
-
+  const result = truncateSectionBullets(content, parseExperienceEntry);
   return {
-    content: rebuiltEntries.join("\n\n"),
-    truncated,
+    content: result.content,
+    truncated: result.truncated.map((t) => ({
+      jobName: t.entryName,
+      originalCount: t.originalCount,
+    })),
   };
 };
 
@@ -88,19 +72,8 @@ export type ExperienceOverflow = {
   count: number;
 };
 
-export const findOverflowingExperienceJobs = (content: string): ExperienceOverflow[] => {
-  const entries = splitEntries(content);
-  const overflows: ExperienceOverflow[] = [];
-
-  for (const rawLines of entries) {
-    const entry = parseEntry(rawLines);
-    if (entry.bullets.length > MAX_EXPERIENCE_BULLETS) {
-      overflows.push({
-        jobName: entryDisplayName(entry),
-        count: entry.bullets.length,
-      });
-    }
-  }
-
-  return overflows;
-};
+export const findOverflowingExperienceJobs = (content: string): ExperienceOverflow[] =>
+  findOverflowingEntries(content, parseExperienceEntry).map((o) => ({
+    jobName: o.entryName,
+    count: o.count,
+  }));

@@ -17,6 +17,10 @@ import {
   MAX_EXPERIENCE_BULLETS,
   findOverflowingExperienceJobs,
 } from "@/lib/experience-bullets";
+import {
+  MAX_PROJECT_BULLETS,
+  findOverflowingProjects,
+} from "@/lib/project-bullets";
 
 const createBooleanMap = (value: boolean): Record<CVSectionKey, boolean> => ({
   headline: value,
@@ -241,6 +245,19 @@ export default function Home() {
           .join(", ");
         toast.error(
           `Each job can have at most ${MAX_EXPERIENCE_BULLETS} bullets. Trim: ${detail}.`,
+        );
+        return;
+      }
+    }
+
+    if (activeEditSection === "projects") {
+      const overflows = findOverflowingProjects(nextValue);
+      if (overflows.length > 0) {
+        const detail = overflows
+          .map((project) => `${project.projectName} (found ${project.count})`)
+          .join(", ");
+        toast.error(
+          `Each project can have at most ${MAX_PROJECT_BULLETS} bullets. Trim: ${detail}.`,
         );
         return;
       }

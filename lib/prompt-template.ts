@@ -13,8 +13,9 @@ Rules:
    - Bullet lines
    Use only technologies already present or directly inferable from the original section content.
    Emit at most 5 bullet lines per job. Prefer the strongest, most job-relevant ones; merge or drop the rest.
-6) Return only the updated section content, without any preamble, bullets about what changed, or explanations.
-7) If Section name is exactly "Professional Title":
+6) For the PROJECTS section, emit at most 5 bullet lines per project. Prefer the strongest, most job-relevant ones; merge or drop the rest.
+7) Return only the updated section content, without any preamble, bullets about what changed, or explanations.
+8) If Section name is exactly "Professional Title":
    - Return exactly one ATS-friendly professional title tailored to the job description.
    - Keep it concise.
    - Use role + key specialization keywords only (no company names, no locations, no years).
