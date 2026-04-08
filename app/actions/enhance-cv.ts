@@ -2,6 +2,8 @@
 
 import { createAIProvider } from "@/lib/ai-provider";
 import { CV_SECTION_KEYS, CV_SECTION_LABELS, type CVSectionKey } from "@/lib/cv-schema";
+import { truncateExperienceBullets } from "@/lib/experience-bullets";
+import { truncateProjectBullets } from "@/lib/project-bullets";
 import { DEFAULT_PROMPT_TEMPLATE, normalizeEditablePromptTemplate } from "@/lib/prompt-template";
 
 type EnhanceSingleSectionInput = {
@@ -54,13 +56,27 @@ const isDecorativeLine = (line: string) => {
   return /^[\-\_=*~`#|.]{3,}$/.test(trimmed);
 };
 
-const sanitizeEnhancedContent = (sectionName: string, rawContent: string) => {
+const sanitizeEnhancedContent = (
+  sectionKey: CVSectionKey,
+  sectionName: string,
+  rawContent: string,
+) => {
   const withoutHeading = stripRepeatedSectionHeading(sectionName, rawContent);
   const cleanedLines = withoutHeading
     .split("\n")
     .filter((line) => !isDecorativeLine(line));
 
-  return cleanedLines.join("\n").trim();
+  let cleaned = cleanedLines.join("\n").trim();
+
+  if (sectionKey === "workExperience" && cleaned) {
+    cleaned = truncateExperienceBullets(cleaned).content;
+  }
+
+  if (sectionKey === "projects" && cleaned) {
+    cleaned = truncateProjectBullets(cleaned).content;
+  }
+
+  return cleaned;
 };
 
 export async function enhanceSingleSectionAction(
@@ -102,7 +118,7 @@ export async function enhanceSingleSectionAction(
       jobDescription,
       promptTemplate,
     });
-    const sanitizedContent = sanitizeEnhancedContent(sectionName, enhancedContent);
+    const sanitizedContent = sanitizeEnhancedContent(sectionKey, sectionName, enhancedContent);
 
     return {
       sectionKey,
