@@ -274,6 +274,23 @@ export default function Home() {
     toast.success("All sections and job description were reset.");
   };
 
+  const handleExportPdf = () => {
+    if (typeof window === "undefined") return;
+    const previousTitle = document.title;
+    const sanitized = cvHeader.fullName
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, "")
+      .replace(/\s+/g, "_");
+    const safeName = sanitized || previousTitle;
+    document.title = safeName;
+    const restore = () => {
+      document.title = previousTitle;
+      window.removeEventListener("afterprint", restore);
+    };
+    window.addEventListener("afterprint", restore);
+    window.print();
+  };
+
   const handleOpenPromptModal = () => {
     setPromptModalDraft(promptTemplate);
     setIsPromptModalOpen(true);
@@ -713,6 +730,14 @@ export default function Home() {
               className="ml-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Reset All
+            </button>
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              disabled={anyLoading || anyEditing}
+              className="ml-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Export PDF
             </button>
           </div>
           {anyEditing && (
