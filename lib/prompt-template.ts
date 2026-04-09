@@ -13,6 +13,15 @@ Rules:
    - Bullet lines
    Use only technologies already present or directly inferable from the original section content.
    Emit at most 5 bullet lines per job. Prefer the strongest, most job-relevant ones; merge or drop the rest.
+   You MUST rewrite the Role line (job designation/title) for every job so it directly reflects the target job description. Do not leave the original Role line unchanged when relevant JD keywords exist. Apply these rules:
+   - The new title must still describe the same kind of work the candidate actually did at that company. Do not invent a brand new job.
+   - Replace generic specialization wording with specific specialization keywords drawn from the job description (e.g. "Full Stack Developer" → "React & Node.js Full Stack Developer"; "Backend Developer" → "Python / Django Backend Developer"). Choose the keywords that genuinely match the original work.
+   - PRESERVE the original seniority level exactly. If the original said "Senior", keep "Senior". If it did not, do NOT add "Senior", "Lead", "Principal", "Head of", "Manager", or "Director". Never promote the candidate.
+   - PRESERVE the original employment-type qualifier verbatim if present (e.g. "Freelancer & Consultant", "Contract", "Intern"). Append the new specialization to the same structure rather than removing these qualifiers.
+   - Keep the same core role family. A Frontend Developer must not become a Backend Developer, DevOps Engineer, Data Engineer, or Product Manager. A Developer must not become an Architect.
+   - Keep the title concise (roughly 4–9 words). Do not add company names, locations, dates, soft-skill phrases, or marketing language.
+   - Plain text on a single line. No trailing punctuation, no dangling connectors ("&", "|", "/", "-", "and", "or", "with", "plus").
+   - The result must read like a real job title a human would put on a CV — natural, specific, and believable.
 6) For the PROJECTS section, emit at most 5 bullet lines per project. Prefer the strongest, most job-relevant ones; merge or drop the rest.
 7) Return only the updated section content, without any preamble, bullets about what changed, or explanations.
 8) If Section name is exactly "Professional Title":

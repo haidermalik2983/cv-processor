@@ -23,6 +23,17 @@ export const CV_SECTION_LABELS: Record<CVSectionKey, string> = {
 
 export const MASTER_CV_SECTION_TITLES: CVSectionTitlesMap = { ...CV_SECTION_LABELS };
 
+export const CV_HEADER = {
+  fullName: "HAIDER MALIK",
+  contactLine: "Email: ",
+  email: "",
+  linkedinUrl: "https://pk.linkedin.com/in/haidermalik2983",
+  contactSeparator: " - LinkedIn: ",
+  githubSeparator: " - GitHub: ",
+  githubUrl: "https://github.com/haidermalik2983",
+  title: CV_SECTION_LABELS.headline,
+};
+
 export const MASTER_CV_SECTIONS: CVSectionsMap = {
   headline:
     "Senior Full-Stack Developer (Node.js / React.js)",

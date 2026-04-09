@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { enhanceSingleSectionAction } from "@/app/actions/enhance-cv";
 import {
+  CV_HEADER,
   CV_SECTION_KEYS,
   type CVSectionKey,
   type CVSectionsMap,
@@ -46,17 +47,6 @@ const DOCX_SECTION_HEADINGS: Record<CVSectionKey, string | null> = {
   workExperience: "EXPERIENCE",
   education: "EDUCATION",
   projects: "PROJECTS",
-};
-
-const CV_HEADER = {
-  fullName: "HAIDER MALIK",
-  contactLine: "Email: ",
-  email: "",
-  linkedinUrl: "https://pk.linkedin.com/in/haidermalik2983",
-  contactSeparator: " - LinkedIn: ",
-  githubSeparator: " - GitHub: ",
-  githubUrl: "https://github.com/haidermalik2983",
-  title: "Senior Full-Stack Developer | Node.js / React.js",
 };
 
 type InputTab = "jobDescription" | "promptTemplate";
