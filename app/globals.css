@@ -275,6 +275,11 @@ button.border-zinc-300:not(:disabled):hover {
   }
 }
 
+@page {
+  size: auto;
+  margin: 0;
+}
+
 @media print {
   :root {
     --background: #ffffff;
@@ -284,6 +289,11 @@ button.border-zinc-300:not(:disabled):hover {
   body {
     background: #ffffff;
     color: #000000;
+    margin: 0;
+  }
+
+  .cv-content {
+    padding: 0.5in !important;
   }
 
   .cv-section {
