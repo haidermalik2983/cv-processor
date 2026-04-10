@@ -145,14 +145,21 @@ export default function Home() {
       return;
     }
 
+    // Snapshot current values so parallel closures don't see stale state.
+    const currentSections = { ...sections };
+    const currentTitles = { ...sectionTitles };
+
+    // Mark all sections as loading up front.
     for (const sectionKey of CV_SECTION_KEYS) {
       setSectionLoadingState(sectionKey, true);
+    }
 
+    const enhanceSection = async (sectionKey: CVSectionKey) => {
       try {
         const result = await enhanceSingleSectionAction({
           sectionKey,
-          sectionName: sectionTitles[sectionKey],
-          sectionContent: sections[sectionKey],
+          sectionName: currentTitles[sectionKey],
+          sectionContent: currentSections[sectionKey],
           jobDescription: trimmedJobDescription,
           promptTemplate,
         });
@@ -170,7 +177,7 @@ export default function Home() {
           const headlineTitleResult = await enhanceSingleSectionAction({
             sectionKey,
             sectionName: "Professional Title",
-            sectionContent: sectionTitles.headline,
+            sectionContent: currentTitles.headline,
             jobDescription: trimmedJobDescription,
             promptTemplate,
           });
@@ -191,7 +198,7 @@ export default function Home() {
           }
         }
       } catch (error: unknown) {
-        const sectionLabel = sectionTitles[sectionKey];
+        const sectionLabel = currentTitles[sectionKey];
         const message =
           error instanceof Error && error.message
             ? error.message
@@ -200,7 +207,9 @@ export default function Home() {
       } finally {
         setSectionLoadingState(sectionKey, false);
       }
-    }
+    };
+
+    await Promise.allSettled(CV_SECTION_KEYS.map(enhanceSection));
   };
 
   const handleOpenEditModal = (sectionKey: CVSectionKey) => {

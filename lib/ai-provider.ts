@@ -13,6 +13,7 @@ type EnhanceSectionInput = {
 
 export interface AIProvider {
   enhanceSection(input: EnhanceSectionInput): Promise<string>;
+  complete(input: { systemMessage: string; userPrompt: string }): Promise<string>;
 }
 
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
@@ -70,8 +71,7 @@ class OpenAIProvider implements AIProvider {
     this.model = model;
   }
 
-  async enhanceSection(input: EnhanceSectionInput): Promise<string> {
-    const prompt = buildPrompt(input);
+  private async _request(systemMessage: string, userPrompt: string): Promise<string> {
     for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt += 1) {
       let response: Response;
       try {
@@ -85,15 +85,8 @@ class OpenAIProvider implements AIProvider {
             model: this.model,
             temperature: 0.4,
             messages: [
-              {
-                role: "system",
-                content:
-                  "You are a CV optimization assistant. You only return polished section text.",
-              },
-              {
-                role: "user",
-                content: prompt,
-              },
+              { role: "system", content: systemMessage },
+              { role: "user", content: userPrompt },
             ],
           }),
         });
@@ -133,6 +126,18 @@ class OpenAIProvider implements AIProvider {
     }
 
     throw new Error(CLIENT_SAFE_PROVIDER_ERROR);
+  }
+
+  async enhanceSection(input: EnhanceSectionInput): Promise<string> {
+    const prompt = buildPrompt(input);
+    return this._request(
+      "You are a CV optimization assistant. You only return polished section text.",
+      prompt,
+    );
+  }
+
+  async complete(input: { systemMessage: string; userPrompt: string }): Promise<string> {
+    return this._request(input.systemMessage, input.userPrompt);
   }
 }
 

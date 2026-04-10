@@ -4,7 +4,13 @@ import { createAIProvider } from "@/lib/ai-provider";
 import { CV_SECTION_KEYS, CV_SECTION_LABELS, type CVSectionKey } from "@/lib/cv-schema";
 import { truncateExperienceBullets } from "@/lib/experience-bullets";
 import { truncateProjectBullets } from "@/lib/project-bullets";
-import { DEFAULT_PROMPT_TEMPLATE, normalizeEditablePromptTemplate } from "@/lib/prompt-template";
+import {
+  applyPromptTemplate,
+  DEFAULT_PROMPT_TEMPLATE,
+  FINAL_REVIEW_PROMPT_TEMPLATE,
+  normalizeEditablePromptTemplate,
+  REVIEW_PROMPT_TEMPLATE,
+} from "@/lib/prompt-template";
 
 type EnhanceSingleSectionInput = {
   sectionKey: CVSectionKey;
@@ -56,6 +62,9 @@ const isDecorativeLine = (line: string) => {
   return /^[\-\_=*~`#|.]{3,}$/.test(trimmed);
 };
 
+const stripMarkdownBold = (line: string) =>
+  line.replace(/\*\*(.+?)\*\*/g, "$1");
+
 const sanitizeEnhancedContent = (
   sectionKey: CVSectionKey,
   sectionName: string,
@@ -64,7 +73,8 @@ const sanitizeEnhancedContent = (
   const withoutHeading = stripRepeatedSectionHeading(sectionName, rawContent);
   const cleanedLines = withoutHeading
     .split("\n")
-    .filter((line) => !isDecorativeLine(line));
+    .filter((line) => !isDecorativeLine(line))
+    .map(stripMarkdownBold);
 
   let cleaned = cleanedLines.join("\n").trim();
 
@@ -112,17 +122,53 @@ export async function enhanceSingleSectionAction(
 
   try {
     const provider = createAIProvider();
-    const enhancedContent = await provider.enhanceSection({
+
+    // Pass 1: Enhance the section
+    const pass1Result = await provider.enhanceSection({
       sectionName,
       sectionContent,
       jobDescription,
       promptTemplate,
     });
-    const sanitizedContent = sanitizeEnhancedContent(sectionKey, sectionName, enhancedContent);
+
+    // Skip review passes for "Professional Title" (single-line output)
+    const skipReviewPasses = sectionName === "Professional Title";
+
+    let finalResult = pass1Result;
+
+    if (!skipReviewPasses) {
+      // Pass 2: Review and update against the job description
+      const reviewPrompt = applyPromptTemplate(REVIEW_PROMPT_TEMPLATE, {
+        sectionName,
+        originalContent: sectionContent,
+        enhancedContent: pass1Result,
+        jobDescription,
+      });
+      const pass2Result = await provider.complete({
+        systemMessage:
+          "You are a CV review specialist. You compare enhanced CV content against job descriptions and make targeted improvements.",
+        userPrompt: reviewPrompt,
+      });
+
+      // Pass 3: Final detailed review
+      const finalReviewPrompt = applyPromptTemplate(FINAL_REVIEW_PROMPT_TEMPLATE, {
+        sectionName,
+        originalContent: sectionContent,
+        reviewedContent: pass2Result,
+        jobDescription,
+      });
+      finalResult = await provider.complete({
+        systemMessage:
+          "You are a senior CV editor performing a final quality review. You only return the final polished text.",
+        userPrompt: finalReviewPrompt,
+      });
+    }
+
+    const sanitizedContent = sanitizeEnhancedContent(sectionKey, sectionName, finalResult);
 
     return {
       sectionKey,
-      enhancedContent: sanitizedContent || enhancedContent,
+      enhancedContent: sanitizedContent || finalResult,
     };
   } catch (error) {
     console.error("[enhanceSingleSectionAction] Enhancement failed", {
