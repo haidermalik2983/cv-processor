@@ -24,7 +24,8 @@ Rules:
    - The result must read like a real job title a human would put on a CV — natural, specific, and believable.
 6) For the PROJECTS section, emit at most 5 bullet lines per project. Prefer the strongest, most job-relevant ones; merge or drop the rest.
 7) Return only the updated section content, without any preamble, bullets about what changed, or explanations.
-8) If Section name is exactly "Professional Title":
+8) Do not use markdown formatting. No bold (**), italic (*), headings (#), or code blocks (\`\`\`). Return plain text only.
+9) If Section name is exactly "Professional Title":
    - Return exactly one ATS-friendly professional title tailored to the job description.
    - Keep it concise.
    - Use role + key specialization keywords only (no company names, no locations, no years).
@@ -70,16 +71,63 @@ export const buildPromptTemplateWithRequiredContext = (editableTemplate: string)
 
 export const applyPromptTemplate = (
   template: string,
-  values: {
-    sectionName: string;
-    sectionContent: string;
-    jobDescription: string;
-  },
+  values: Record<string, string>,
 ) => {
-  return template
-    .replaceAll("{{sectionName}}", values.sectionName)
-    .replaceAll("{{sectionContent}}", values.sectionContent)
-    .replaceAll("{{jobDescription}}", values.jobDescription)
-    .trim();
+  let result = template;
+  for (const [key, value] of Object.entries(values)) {
+    result = result.replaceAll(`{{${key}}}`, value);
+  }
+  return result.trim();
 };
+
+export const REVIEW_PROMPT_TEMPLATE = `
+Review the following enhanced CV section against the job description.
+Compare it with the original content to ensure accuracy and relevance.
+
+Rules:
+1) Identify any keywords from the job description that are missing or underrepresented. Add them naturally.
+2) Verify that no experiences, skills, or qualifications were fabricated. Remove anything not supported by the original content.
+3) Strengthen quantifiable achievements. Add metrics where the original content supports them.
+4) Remove filler words and vague statements. Every sentence should convey specific value.
+5) Ensure terminology matches the job description's preferred phrasing (e.g., if the JD says "CI/CD" don't write "continuous integration").
+6) Maintain the same structure and formatting as the enhanced version.
+7) Return only the updated section content without preamble or explanations.
+8) Do not use markdown formatting. No bold (**), italic (*), headings (#), or code blocks (\`\`\`). Return plain text only.
+
+Section name: {{sectionName}}
+
+Original section content:
+{{originalContent}}
+
+Enhanced section content to review:
+{{enhancedContent}}
+
+Job description:
+{{jobDescription}}
+`.trim();
+
+export const FINAL_REVIEW_PROMPT_TEMPLATE = `
+Perform a final quality review of this CV section.
+
+Rules:
+1) Fix any grammar, punctuation, or spelling issues.
+2) Ensure consistent formatting throughout (bullet style, capitalization, tense).
+3) Remove redundancy - no two bullets should convey the same point.
+4) Verify conciseness: each bullet should be one impactful sentence, not two.
+5) Confirm the section reads naturally and professionally as a whole.
+6) Do not add new content. Only refine what exists.
+7) Return only the final section content without preamble or explanations.
+8) Do not use markdown formatting. No bold (**), italic (*), headings (#), or code blocks (\`\`\`). Return plain text only.
+
+Section name: {{sectionName}}
+
+Section content to finalize:
+{{reviewedContent}}
+
+Original section content (for reference):
+{{originalContent}}
+
+Job description (for reference):
+{{jobDescription}}
+`.trim();
 
