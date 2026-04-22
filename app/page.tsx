@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { enhanceSingleSectionAction } from "@/app/actions/enhance-cv";
 import {
@@ -22,6 +23,8 @@ import {
   MAX_PROJECT_BULLETS,
   findOverflowingProjects,
 } from "@/lib/project-bullets";
+import { createClient } from "@/lib/supabase/client";
+import { User } from "@supabase/supabase-js";
 
 const createBooleanMap = (value: boolean): Record<CVSectionKey, boolean> => ({
   headline: value,
@@ -69,6 +72,9 @@ export default function Home() {
   const [cvHeader, setCvHeader] = useState(CV_HEADER);
   const [isHeaderModalOpen, setIsHeaderModalOpen] = useState(false);
   const [headerDraft, setHeaderDraft] = useState(CV_HEADER);
+  const [user, setUser] = useState<User | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -96,6 +102,24 @@ export default function Home() {
     }
     storage.savePromptTemplate(promptTemplate);
   }, [promptTemplate, hasHydratedStorage]);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+    });
+
+      const { data: listener } = supabase.auth.onAuthStateChange(
+      (_, session) => {
+        setUser(session?.user ?? null);
+        setSigningOut(false);
+      }
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+
+  }, []);
 
   const anyLoading = useMemo(
     () => CV_SECTION_KEYS.some((sectionKey) => sectionLoading[sectionKey]),
@@ -280,30 +304,91 @@ export default function Home() {
     setActiveEditSection(null);
   };
 
-  const handleResetSection = (sectionKey: CVSectionKey) => {
-    storage.resetSection(sectionKey);
-    setSections((prev) => ({
-      ...prev,
-      [sectionKey]: MASTER_CV_SECTIONS[sectionKey],
-    }));
-    setSectionTitles((prev) => ({
-      ...prev,
-      [sectionKey]: MASTER_CV_SECTION_TITLES[sectionKey],
-    }));
+  const handleResetSection = async (sectionKey: CVSectionKey) => {  
+    if (user) {
+      try {
+        const cvDefaults = await supabase.from('user_cv_defaults').select(`sections, section_titles`).eq('user_id', user.id).maybeSingle();
+        if (!cvDefaults?.data) return;
+        const userSections = { ...MASTER_CV_SECTIONS, ...(cvDefaults.data.sections as CVSectionsMap) };
+        const userSectionTitles = {...MASTER_CV_SECTION_TITLES, ...(cvDefaults.data.section_titles as CVSectionTitlesMap) };
+        const nextSectionContent = userSections[sectionKey];
+        const nextSectionTitle = userSectionTitles[sectionKey];
+        setSections((prev) => ({
+          ...prev,
+          [sectionKey]: nextSectionContent,
+        }));
+        setSectionTitles((prev) => ({
+          ...prev,
+          [sectionKey]: nextSectionTitle,
+        }));
+      } catch (error) {
+        toast.error("Failed to load saved defaults from database. Resetting to hardcoded content.");
+        storage.resetSection(sectionKey);
+        setSections((prev) => ({
+          ...prev,
+          [sectionKey]: MASTER_CV_SECTIONS[sectionKey],
+        }));
+        setSectionTitles((prev) => ({
+          ...prev,
+          [sectionKey]: MASTER_CV_SECTION_TITLES[sectionKey],
+        }));  
+      }
+    } else {
+      storage.resetSection(sectionKey);
+      setSections((prev) => ({
+        ...prev,
+        [sectionKey]: MASTER_CV_SECTIONS[sectionKey],
+      }));
+      setSectionTitles((prev) => ({
+        ...prev,
+        [sectionKey]: MASTER_CV_SECTION_TITLES[sectionKey],
+      }));  
+    }
+    
     toast.success(`${MASTER_CV_SECTION_TITLES[sectionKey]} reset to hardcoded content.`);
   };
 
-  const handleResetAll = () => {
+  const handleResetAll = async () => {
     storage.resetAllSections();
     storage.clearJobDescription();
     storage.clearPromptTemplate();
     storage.clearHeader();
-    setSections(MASTER_CV_SECTIONS);
-    setSectionTitles(MASTER_CV_SECTION_TITLES);
+    let updatedSection = MASTER_CV_SECTIONS;
+    let updatedTitles = MASTER_CV_SECTION_TITLES;
+    let updatedHeader = CV_HEADER;
+
+    if (user) {
+        try {
+          const { data, error } = await supabase
+          .from("user_cv_defaults")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle();
+          if (error) {
+            throw error;
+          }
+          if (!data) return;
+
+          const { created_at, updated_at, user_id, id, ...defaults } = data;
+          storage.savedDefaults({header: defaults.header as Record<string, string>, sections: defaults.sections as Record<string, string>, section_titles: defaults.section_titles as Record<string, string>});
+          updatedHeader = defaults.header as typeof CV_HEADER;
+          updatedSection = defaults.sections as CVSectionsMap;
+          updatedTitles = defaults.section_titles as CVSectionTitlesMap;
+        } catch (error) {
+          toast.error("Failed to load saved defaults from database. Resetting to hardcoded content.");
+          updatedSection = MASTER_CV_SECTIONS;
+          updatedTitles = MASTER_CV_SECTION_TITLES;
+          updatedHeader = CV_HEADER;
+        }
+    } 
+
+    setSections(updatedSection);
+    setSectionTitles(updatedTitles);
     setJobDescription("");
     setPromptTemplate(DEFAULT_PROMPT_TEMPLATE);
-    setCvHeader(CV_HEADER);
+    setCvHeader(updatedHeader);
     setActiveEditSection(null);
+    
     toast.success("All sections and job description were reset.");
   };
 
@@ -343,6 +428,26 @@ export default function Home() {
     setIsPromptModalOpen(false);
     toast.success("Prompt template updated.");
   };
+
+  const changeDefaultCV = async () => {
+    if (!user) {
+      toast.error("You must be signed in to change your default CV.");
+      return;
+    }
+    try {
+      const { error } = await supabase.from('user_cv_defaults').upsert({
+        user_id: user.id,
+        header: cvHeader,
+        sections,
+        section_titles: sectionTitles
+      }, { onConflict: 'user_id' });
+      if (error) throw error;
+      toast.success("Default CV updated for your account.");
+    } catch (error) {
+      toast.error("Failed to update default CV. Please try again.");
+    }
+  }
+
 
   const renderSection = (sectionKey: CVSectionKey) => {
     const isLoading = sectionLoading[sectionKey];
@@ -663,7 +768,30 @@ export default function Home() {
     <div className="mx-auto min-h-screen w-full max-w-5xl bg-zinc-50 p-4 text-zinc-900 md:p-8 print:bg-white print:p-0">
       <main className="rounded-xl bg-white p-4 shadow-sm md:p-8 print:rounded-none print:shadow-none">
         <section className="mb-6 space-y-3 print:hidden">
-          <h1 className="text-2xl font-semibold">CV Processor</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-semibold">CV Processor</h1>
+            {user ?  
+            <>
+             <p>Logged in as {user.email}</p>
+             <button
+              type="button"
+              onClick={() => {
+                setSigningOut(true);
+                supabase.auth.signOut()
+              }}
+              disabled={signingOut}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            >
+              {signingOut ? "Signing out..." : "Sign out"}
+            </button>
+            </>
+            : <Link
+              href="/login"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            >
+              Sign in
+            </Link>}
+          </div>
           <p className="text-sm text-zinc-600">
             Paste a job description, enhance each CV section with AI, then press Ctrl+P to
             export as PDF.
@@ -694,6 +822,18 @@ export default function Home() {
             >
               Prompt Template
             </button>
+            {user && (
+             <button
+              type="button"
+              onClick={() => changeDefaultCV()}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                activeInputTab === "promptTemplate"
+                  ? "bg-zinc-900 text-white"
+                  : "border border-zinc-300 text-zinc-700 hover:bg-zinc-100"
+              }`}
+            >
+              Save as my default
+            </button>)}
           </div>
 
           {activeInputTab === "jobDescription" ? (

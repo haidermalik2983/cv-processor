@@ -1,3 +1,4 @@
+import { Json } from "@/database.types";
 import {
   CV_SECTION_KEYS,
   type CVSectionKey,
@@ -17,6 +18,11 @@ const getSectionTitleKey = (sectionKey: CVSectionKey) => `cvp:section-title:${se
 
 const canUseStorage = () => typeof window !== "undefined";
 
+interface UserCvDefaults {                                                                                                                                                            
+    header: Record<string, string>;       
+    sections: Record<string, string>;                                                                                                                                                   
+    section_titles: Record<string, string>;                                                                                                                                             
+  }
 export const storage = {
   loadJobDescription(): string {
     if (!canUseStorage()) return "";
@@ -124,5 +130,27 @@ export const storage = {
     if (!canUseStorage()) return;
     window.localStorage.removeItem(HEADER_KEY);
   },
+
+  savedDefaults(data: UserCvDefaults) {
+    if (!canUseStorage()) return;
+     const { header, section_titles, sections} = data ;
+    storage.saveHeader(header);
+
+    if (sections && typeof sections === "object" && !Array.isArray(sections)) {
+      for (const [sectionKey, content] of Object.entries(sections)) {
+        if (content && typeof content === "string") {
+          storage.saveSection(sectionKey as any, content);
+        }
+      }
+    }
+
+    if (section_titles && typeof section_titles === "object" && !Array.isArray(section_titles)) {
+      for (const [sectionKey, title] of Object.entries(section_titles)) {
+        if (title && typeof title === "string") {
+          storage.saveSectionTitle(sectionKey as any, title);
+        }
+      }
+    } 
+  }
 };
 
