@@ -3,11 +3,13 @@ import {
   buildPromptTemplateWithRequiredContext,
   DEFAULT_PROMPT_TEMPLATE,
 } from "@/lib/prompt-template";
+import { detectSectionType, ENHANCE_SYSTEM_PROMPT, getEnhancePromptTemplate } from "./enhance";
 
 type EnhanceSectionInput = {
   sectionName: string;
   sectionContent: string;
   jobDescription: string;
+  positioningAnalysis: string;
   promptTemplate?: string;
 };
 
@@ -37,31 +39,6 @@ const extractRetryDelayMs = (errorBody: string) => {
   return DEFAULT_RETRY_DELAY_MS;
 };
 
-const redactProviderErrorBody = (value: string) =>
-  value
-    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
-    .replace(/\bsk-[A-Za-z0-9]+\b/g, "sk-[REDACTED]")
-    .replace(
-      /"(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|key)"\s*:\s*"[^"]*"/gi,
-      '"$1":"[REDACTED]"',
-    );
-
-const logProviderFailure = ({
-  status,
-  attempt,
-  errorBody,
-}: {
-  status: number;
-  attempt: number;
-  errorBody: string;
-}) => {
-  console.error("[OpenAIProvider] Request failed", {
-    status,
-    attempt,
-    errorBody: redactProviderErrorBody(errorBody || "Unknown provider error"),
-  });
-};
-
 class OpenAIProvider implements AIProvider {
   private readonly apiKey: string;
   private readonly model: string;
@@ -71,9 +48,10 @@ class OpenAIProvider implements AIProvider {
     this.model = model;
   }
 
-  private async _request(systemMessage: string, userPrompt: string): Promise<string> {
+  private async _request(systemMessage: string, userPrompt: string, modelOption?: Record<string, unknown>): Promise<string> {
     for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt += 1) {
       let response: Response;
+      const extraModelOptions = {temperature: 0.4, ...modelOption};
       try {
         response = await fetch(OPENAI_API_URL, {
           method: "POST",
@@ -83,18 +61,14 @@ class OpenAIProvider implements AIProvider {
           },
           body: JSON.stringify({
             model: this.model,
-            temperature: 0.4,
             messages: [
               { role: "system", content: systemMessage },
               { role: "user", content: userPrompt },
             ],
+            ...extraModelOptions,
           }),
         });
-      } catch (error) {
-        console.error("[OpenAIProvider] Network or fetch error", {
-          attempt,
-          error: error instanceof Error ? error.message : String(error),
-        });
+      } catch {
         throw new Error(CLIENT_SAFE_PROVIDER_ERROR);
       }
 
@@ -104,11 +78,6 @@ class OpenAIProvider implements AIProvider {
           await sleep(extractRetryDelayMs(errorBody));
           continue;
         }
-        logProviderFailure({
-          status: response.status,
-          attempt,
-          errorBody,
-        });
         throw new Error(CLIENT_SAFE_PROVIDER_ERROR);
       }
 
@@ -118,7 +87,6 @@ class OpenAIProvider implements AIProvider {
 
       const content = data.choices?.[0]?.message?.content?.trim() ?? "";
       if (!content) {
-        console.error("[OpenAIProvider] Empty response content", { attempt });
         throw new Error(CLIENT_SAFE_PROVIDER_ERROR);
       }
 
@@ -129,10 +97,29 @@ class OpenAIProvider implements AIProvider {
   }
 
   async enhanceSection(input: EnhanceSectionInput): Promise<string> {
-    const prompt = buildPrompt(input);
+    const { sectionName, sectionContent, jobDescription, positioningAnalysis } = input;
+    // const prompt = buildPrompt(input);
+    const sectionType = detectSectionType(sectionName);
+      const template = getEnhancePromptTemplate(sectionType);
+    
+      const prompt = applyPromptTemplate(template, {
+        sectionName,
+        sectionContent,
+        jobDescription,
+        analysis: positioningAnalysis,
+      });
+       const maxTokens =
+    sectionType === "professional_title"
+      ? 60
+      : sectionType === "summary"
+        ? 250
+        : sectionType === "skills"
+          ? 500
+          : undefined;
     return this._request(
-      "You are a CV optimization assistant. You only return polished section text.",
+      ENHANCE_SYSTEM_PROMPT,
       prompt,
+       { max_completion_tokens: maxTokens }
     );
   }
 
@@ -146,13 +133,15 @@ const buildPrompt = ({
   sectionContent,
   jobDescription,
   promptTemplate,
-}: EnhanceSectionInput) =>
+  positioningAnalysis,
+}: EnhanceSectionInput) => 
   applyPromptTemplate(
-    buildPromptTemplateWithRequiredContext(promptTemplate?.trim() || DEFAULT_PROMPT_TEMPLATE),
+    buildPromptTemplateWithRequiredContext(DEFAULT_PROMPT_TEMPLATE),
     {
     sectionName,
     sectionContent,
     jobDescription,
+    positioningAnalysis
     },
   );
 

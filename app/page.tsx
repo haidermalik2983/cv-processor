@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { enhanceSingleSectionAction } from "@/app/actions/enhance-cv";
+import { reviewFullCvAction } from "@/app/actions/review-cv";
 import {
   CV_HEADER,
   CV_SECTION_KEYS,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/project-bullets";
 import { createClient } from "@/lib/supabase/client";
 import { User } from "@supabase/supabase-js";
+import { FullCVReview, ReviewedSection } from "@/lib/enhance";
 
 const createBooleanMap = (value: boolean): Record<CVSectionKey, boolean> => ({
   headline: value,
@@ -58,6 +60,7 @@ export default function Home() {
   const [jobDescription, setJobDescription] = useState("");
   const [promptTemplate, setPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE);
   const [sections, setSections] = useState<CVSectionsMap>(MASTER_CV_SECTIONS);
+  const [sectionReview, setSectionReview] = useState<Record<keyof CVSectionsMap, ReviewedSection> | null>(null);
   const [sectionTitles, setSectionTitles] = useState<CVSectionTitlesMap>(MASTER_CV_SECTION_TITLES);
   const [sectionLoading, setSectionLoading] = useState<Record<CVSectionKey, boolean>>(
     createBooleanMap(false),
@@ -67,6 +70,9 @@ export default function Home() {
   const [modalTitleDraft, setModalTitleDraft] = useState("");
   const [modalContentDraft, setModalContentDraft] = useState("");
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+  const [fullCvReview, setFullCvReview] = useState<FullCVReview | null>(null);
+  const [isReviewingFullCv, setIsReviewingFullCv] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [promptModalDraft, setPromptModalDraft] = useState("");
   const [hasHydratedStorage, setHasHydratedStorage] = useState(false);
   const [cvHeader, setCvHeader] = useState(CV_HEADER);
@@ -158,35 +164,72 @@ export default function Home() {
     setIsHeaderModalOpen(false);
   };
 
-  const handleEnhanceCV = async () => {
-    const trimmedJobDescription = jobDescription.trim();
-    if (!trimmedJobDescription) {
-      toast.error("Please paste a job description before enhancing.");
-      return;
-    }
-    if (!promptTemplate.trim()) {
-      toast.error("Prompt template cannot be empty.");
-      return;
-    }
+  const buildHolisticContextForSection = (
+    sectionKey: CVSectionKey,
+    review: FullCVReview | null,
+  ) => {
+    if (!review) return null;
+    const sectionNote = review.per_section_notes?.[sectionKey];
+    const crossSectionIssues = (review.cross_section_issues ?? []).filter((issue) =>
+      issue.sections_involved?.includes(sectionKey),
+    );
+    const isTopPriorityTarget =
+      review.top_priority_fix &&
+      review.top_priority_fix !== "none" &&
+      (review.top_priority_sections ?? []).includes(sectionKey);
 
-    // Snapshot current values so parallel closures don't see stale state.
-    const currentSections = { ...sections };
-    const currentTitles = { ...sectionTitles };
+    if (!sectionNote && crossSectionIssues.length === 0 && !isTopPriorityTarget) return null;
 
-    // Mark all sections as loading up front.
-    for (const sectionKey of CV_SECTION_KEYS) {
+    const extraIssues = isTopPriorityTarget
+      ? [{ issue: `Top priority fix for the CV: ${review.top_priority_fix}`, fix: review.top_priority_fix }]
+      : [];
+
+    return {
+      note: sectionNote?.note,
+      fix: sectionNote?.fix,
+      crossSectionIssues: [
+        ...extraIssues,
+        ...crossSectionIssues.map((issue) => ({
+          issue: issue.issue,
+          fix: issue.fix,
+        })),
+      ],
+    };
+  };
+
+  const enhanceSection = async (
+    sectionKey: CVSectionKey,
+    options?: { holisticContext?: ReturnType<typeof buildHolisticContextForSection> },
+  ): Promise<{ enhancedContent: string } | null> => {
       setSectionLoadingState(sectionKey, true);
-    }
 
-    const enhanceSection = async (sectionKey: CVSectionKey) => {
+       // Snapshot current values so parallel closures don't see stale state.
+        const currentSections = { ...sections };
+        const currentTitles = { ...sectionTitles };
+        const previewSectionReview = sectionReview ? { ...sectionReview } : null;
+      let enhancedContent: string | null = null;
       try {
+        const trimmedJobDescription = jobDescription.trim();
+        if (!trimmedJobDescription) {
+          toast.error("Please paste a job description before enhancing.");
+          return null;
+        }
+        if (!promptTemplate.trim()) {
+          toast.error("Prompt template cannot be empty.");
+          return null;
+        }
+
         const result = await enhanceSingleSectionAction({
           sectionKey,
-          sectionName: currentTitles[sectionKey],
+          sectionName:
+            sectionKey === "headline" ? "Professional Summary" : currentTitles[sectionKey],
           sectionContent: currentSections[sectionKey],
           jobDescription: trimmedJobDescription,
+          previousReview: previewSectionReview?.[sectionKey],
           promptTemplate,
+          holisticContext: options?.holisticContext ?? null,
         });
+        enhancedContent = result.enhancedContent;
 
         setSections((prev) => {
           const next = {
@@ -194,6 +237,14 @@ export default function Home() {
             [result.sectionKey]: result.enhancedContent,
           };
           storage.saveSection(result.sectionKey, result.enhancedContent);
+          return next;
+        });
+
+        setSectionReview((prev) => {
+          const next = {
+            ...prev,
+            [result.sectionKey]: result.improvements,
+          } as Record<keyof CVSectionsMap, ReviewedSection>;
           return next;
         });
 
@@ -231,9 +282,104 @@ export default function Home() {
       } finally {
         setSectionLoadingState(sectionKey, false);
       }
+      return enhancedContent !== null ? { enhancedContent } : null;
     };
 
-    await Promise.allSettled(CV_SECTION_KEYS.map(enhanceSection));
+
+  const handleEnhanceCV = async () => {
+
+    // Mark all sections as loading up front.
+    // for (const sectionKey of CV_SECTION_KEYS) {
+    //   setSectionLoadingState(sectionKey, true);
+    // }
+
+    
+
+    await Promise.allSettled(CV_SECTION_KEYS.map((key) => enhanceSection(key)));
+  };
+
+  const handleReviewFullCv = async () => {
+    const trimmedJobDescription = jobDescription.trim();
+    if (!trimmedJobDescription) {
+      toast.error("Please paste a job description before reviewing.");
+      return;
+    }
+    setIsReviewingFullCv(true);
+    try {
+      const result = await reviewFullCvAction({
+        sections,
+        jobDescription: trimmedJobDescription,
+      });
+      if (!result.review) {
+        toast.error("Could not parse the review response. Try again.");
+        return;
+      }
+      setFullCvReview(result.review);
+      setIsReviewModalOpen(true);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to review CV.";
+      toast.error(message);
+    } finally {
+      setIsReviewingFullCv(false);
+    }
+  };
+
+  const handleReEnhanceFromReview = async (sectionKey: CVSectionKey) => {
+    const trimmedJobDescription = jobDescription.trim();
+    if (!trimmedJobDescription) {
+      toast.error("Please paste a job description before enhancing.");
+      return;
+    }
+    const priorReview = fullCvReview;
+    const holisticContext = buildHolisticContextForSection(sectionKey, priorReview);
+    const enhanceResult = await enhanceSection(sectionKey, {
+      holisticContext: holisticContext ?? undefined,
+    });
+    if (!enhanceResult) return;
+
+    setIsReviewingFullCv(true);
+    try {
+      const updatedSections = { ...sections, [sectionKey]: enhanceResult.enhancedContent };
+      const result = await reviewFullCvAction({
+        sections: updatedSections,
+        jobDescription: trimmedJobDescription,
+        previousReview: priorReview,
+        changedSectionKeys: [sectionKey],
+      });
+      if (!result.review) {
+        toast.error("Could not parse the refreshed review.");
+        return;
+      }
+
+      // Hard-preserve unchanged sections client-side so notes can't drift
+      // even if the model ignores the iteration-context instruction.
+      let merged = result.review;
+      if (priorReview) {
+        const nextPerSection: FullCVReview["per_section_notes"] = {
+          ...result.review.per_section_notes,
+        };
+        for (const key of CV_SECTION_KEYS) {
+          if (key === sectionKey) continue;
+          const prior = priorReview.per_section_notes?.[key];
+          if (prior) {
+            nextPerSection[key] = prior;
+          }
+        }
+        merged = { ...result.review, per_section_notes: nextPerSection };
+      }
+      setFullCvReview(merged);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to refresh review.";
+      toast.error(message);
+    } finally {
+      setIsReviewingFullCv(false);
+    }
   };
 
   const handleOpenEditModal = (sectionKey: CVSectionKey) => {
@@ -344,6 +490,7 @@ export default function Home() {
         [sectionKey]: MASTER_CV_SECTION_TITLES[sectionKey],
       }));  
     }
+    setSectionReview((prev) => prev ? ({ ...prev, [sectionKey]: null }) : null);
     
     toast.success(`${MASTER_CV_SECTION_TITLES[sectionKey]} reset to hardcoded content.`);
   };
@@ -356,7 +503,7 @@ export default function Home() {
     let updatedSection = MASTER_CV_SECTIONS;
     let updatedTitles = MASTER_CV_SECTION_TITLES;
     let updatedHeader = CV_HEADER;
-
+    setSectionReview(null);
     if (user) {
         try {
           const { data, error } = await supabase
@@ -700,6 +847,8 @@ export default function Home() {
       if (sectionKey === "projects") return renderProjects(sectionContent);
       return <p className="whitespace-pre-line text-sm leading-6">{sectionContent}</p>;
     };
+    const sectionsReview = sectionReview?.[sectionKey];
+    const sectionImprovements = sectionsReview && sectionsReview.criteria.length > 0 ? sectionsReview.criteria.map((criterion) => criterion.suggestion).filter(Boolean).join("\n") : null; 
 
     return (
       <article
@@ -710,11 +859,25 @@ export default function Home() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-900 pb-1">
             <h2 className="text-base font-bold tracking-wide">{sectionTitle}</h2>
             <div className="flex items-center gap-2 print:hidden">
-              {isLoading && (
+              {isLoading ? (
                 <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700">
                   Enhancing...
                 </span>
-              )}
+              ) : <>
+                  {!!sectionsReview && (
+                    <button title={sectionImprovements && sectionsReview.total_score !== 10 ? sectionImprovements : ""}>Score: {sectionsReview.total_score}</button>
+                  )}
+              
+                <button
+                  type="button"
+                  onClick={() => enhanceSection(sectionKey)}
+                  className="cv-section-action-button rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100"
+                  disabled={isLoading}
+                >
+                  Enhance this Section
+                </button>
+              </>}
+
               <button
                 type="button"
                 onClick={() => handleOpenEditModal(sectionKey)}
@@ -891,7 +1054,7 @@ export default function Home() {
             <button
               type="button"
               onClick={handleEnhanceCV}
-              disabled={anyLoading || anyEditing}
+              disabled={anyLoading || anyEditing || jobDescription.trim() === ""}
               className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {anyLoading ? "Enhancing..." : "Enhance CV"}
@@ -912,6 +1075,23 @@ export default function Home() {
             >
               Export PDF
             </button>
+            <button
+              type="button"
+              onClick={handleReviewFullCv}
+              disabled={anyLoading || anyEditing || isReviewingFullCv || jobDescription.trim() === ""}
+              className="ml-2 rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isReviewingFullCv ? "Reviewing..." : "Review Full CV"}
+            </button>
+            {fullCvReview && !isReviewModalOpen && (
+              <button
+                type="button"
+                onClick={() => setIsReviewModalOpen(true)}
+                className="ml-2 rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+              >
+                Score: {fullCvReview.overall_score}/10
+              </button>
+            )}
           </div>
           {anyEditing && (
             <p className="mt-2 text-xs text-zinc-500">
@@ -1059,6 +1239,164 @@ export default function Home() {
               >
                 Save Changes
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isReviewModalOpen && fullCvReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden">
+          <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold">Full CV Review</h3>
+                <p className="mt-1 text-sm text-zinc-600">
+                  Holistic recruiter and ATS review against the job description.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="rounded-md bg-zinc-100 px-3 py-2 text-center">
+                  <div className="text-xs uppercase tracking-wide text-zinc-500">Overall</div>
+                  <div className="text-2xl font-bold">{fullCvReview.overall_score}/10</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsReviewModalOpen(false)}
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium hover:bg-zinc-100"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-y-auto pr-1">
+              {isReviewingFullCv && (
+                <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                  Refreshing review with the latest content...
+                </div>
+              )}
+              {fullCvReview.recruiter_summary && (
+                <section className="mb-4 rounded-lg bg-zinc-50 p-3">
+                  <p className="text-sm leading-6 text-zinc-800">{fullCvReview.recruiter_summary}</p>
+                </section>
+              )}
+
+              {fullCvReview.top_priority_fix && fullCvReview.top_priority_fix !== "none" && (
+                <section className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    Top priority fix
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-amber-900">{fullCvReview.top_priority_fix}</p>
+                  {(() => {
+                    const targets = (fullCvReview.top_priority_sections ?? []).filter((k) =>
+                      CV_SECTION_KEYS.includes(k as CVSectionKey),
+                    ) as CVSectionKey[];
+                    if (targets.length === 0) return null;
+                    return (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-amber-700">Re-enhance:</span>
+                        {targets.map((key) => {
+                          const isLoading = sectionLoading[key];
+                          const label = sectionTitles[key] || key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => handleReEnhanceFromReview(key)}
+                              disabled={isLoading || isReviewingFullCv}
+                              className="rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isLoading ? `${label} (enhancing...)` : label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </section>
+              )}
+
+              {fullCvReview.cross_section_issues && fullCvReview.cross_section_issues.length > 0 && (
+                <section className="mb-4">
+                  <h4 className="mb-2 text-sm font-semibold">Cross-section issues</h4>
+                  <ul className="space-y-2">
+                    {fullCvReview.cross_section_issues.map((issue, idx) => {
+                      const involved = (issue.sections_involved ?? []).filter((k) =>
+                        CV_SECTION_KEYS.includes(k as CVSectionKey),
+                      ) as CVSectionKey[];
+                      return (
+                        <li key={idx} className="rounded-md border border-zinc-200 p-3">
+                          <p className="text-sm text-zinc-900">{issue.issue}</p>
+                          <p className="mt-1 text-sm text-zinc-700">
+                            <span className="font-medium">Fix:</span> {issue.fix}
+                          </p>
+                          {involved.length > 0 && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className="text-xs text-zinc-500">Re-enhance:</span>
+                              {involved.map((key) => {
+                                const isLoading = sectionLoading[key];
+                                const label = sectionTitles[key] || key;
+                                return (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => handleReEnhanceFromReview(key)}
+                                    disabled={isLoading || isReviewingFullCv}
+                                    className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-medium hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {isLoading ? `${label} (enhancing...)` : label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+
+              <section>
+                <h4 className="mb-2 text-sm font-semibold">Per-section notes</h4>
+                <ul className="space-y-2">
+                  {CV_SECTION_KEYS.map((key) => {
+                    const note = fullCvReview.per_section_notes?.[key];
+                    if (!note) return null;
+                    const isLoading = sectionLoading[key];
+                    return (
+                      <li key={key} className="rounded-md border border-zinc-200 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium">{sectionTitles[key] || key}</span>
+                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
+                                {note.score}/2
+                              </span>
+                            </div>
+                            {note.note && <p className="mt-1 text-sm text-zinc-800">{note.note}</p>}
+                            {note.fix && note.fix !== "none" && (
+                              <p className="mt-1 text-sm text-zinc-700">
+                                <span className="font-medium">Fix:</span> {note.fix}
+                              </p>
+                            )}
+                          </div>
+                          {note.fix && note.fix !== "none" && (
+                            <button
+                              type="button"
+                              onClick={() => handleReEnhanceFromReview(key)}
+                              disabled={isLoading || isReviewingFullCv}
+                              className="shrink-0 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isLoading ? "Enhancing..." : isReviewingFullCv ? "Refreshing..." : "Re-enhance"}
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-export const MAX_SECTION_BULLETS = 5;
+export const MAX_SECTION_BULLETS = 3;
 
 export const BULLET_PREFIX_REGEX =
   /^[\s\u00A0\u2022\u2023\u2043\u2219\u25E6\u25AA\u25AB\u25CF\u25CB\u25A0\u25B8\u25B9•◦▪▫●○■▶▷\-*–—]+/u;
