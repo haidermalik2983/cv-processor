@@ -8,6 +8,7 @@ import { reviewFullCvAction } from "@/app/actions/review-cv";
 import {
   CV_HEADER,
   CV_SECTION_KEYS,
+  CV_SECTION_LABELS,
   type CVSectionKey,
   type CVSectionsMap,
   type CVSectionTitlesMap,
@@ -287,13 +288,24 @@ export default function Home() {
 
 
   const handleEnhanceCV = async () => {
+    const missing: string[] = [];
 
-    // Mark all sections as loading up front.
-    // for (const sectionKey of CV_SECTION_KEYS) {
-    //   setSectionLoadingState(sectionKey, true);
-    // }
+    if (!jobDescription.trim()) {
+      missing.push("Job Description");
+    }
 
-    
+    const requiredSections: CVSectionKey[] = ["workExperience", "education", "projects"];
+    for (const key of requiredSections) {
+      if (!sections[key]?.trim()) {
+        missing.push(sectionTitles[key] || CV_SECTION_LABELS[key] || key);
+      }
+    }
+
+    if (missing.length > 0) {
+      const message = `Missing required fields: ${missing.join(", ")}.`;
+      toast.error(message);
+      throw new Error(message);
+    }
 
     await Promise.allSettled(CV_SECTION_KEYS.map((key) => enhanceSection(key)));
   };
