@@ -157,7 +157,7 @@ How to apply:
 7) For an EXPERIENCE section, preserve this block structure for each job:
    Header line: Company, Location — Date
    Role line
-   Technologies line: Technologies: item1, item2, item3
+   Tech Stack line: Tech Stack: item1, item2, item3
    Bullet lines (max 5 per job — keep the strongest, drop or merge the rest)
  
    Use only technologies present in or directly inferable from the original.
@@ -639,6 +639,6 @@ Run these in order. Apply the minimum fix for each issue.
 - No preamble, no change-log, no explanations
 - No markdown formatting
 - Plain text only
-- Preserve the exact block structure of the input (Header / Role / Technologies / Bullets for EXPERIENCE)
+- Preserve the exact block structure of the input (Header / Role / Tech Stack / Bullets for EXPERIENCE)
 - If the input already passes all 7 checks, return it unchanged
 `.trim();

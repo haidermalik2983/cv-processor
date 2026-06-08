@@ -416,10 +416,10 @@ How to apply:
 8) Preserve this block structure for each job:
    Header line: Company, Location — Date
    Role line
-   Technologies line: Technologies: item1, item2, item3
+   Tech Stack line: Tech Stack: item1, item2, item3
    Bullet lines (2 to 3 per job, max 3 — keep only the most JD-relevant bullets, drop or merge the rest)
 
-   The Technologies line should reflect the JD's stack. List the JD's technologies that fit the role's seniority/tenure, supplemented by any original technologies still relevant.
+   The Tech Stack line should reflect the JD's stack. List the JD's technologies that fit the role's seniority/tenure, supplemented by any original technologies still relevant.
 
 9) Role line rewriting: incorporate JD-specific specialization keywords (e.g. "Full Stack Developer" → "TypeScript Full Stack Engineer" if the JD foregrounds TypeScript). Preserve original seniority verbatim — never promote (no adding "Senior", "Lead", "Principal" if absent in the original). Preserve employment-type qualifiers (e.g. "Contract", "Freelancer & Consultant"). Keep title 4–9 words. No trailing connectors.
 

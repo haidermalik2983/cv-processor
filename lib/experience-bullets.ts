@@ -9,7 +9,7 @@ import {
 
 export const MAX_EXPERIENCE_BULLETS = MAX_SECTION_BULLETS;
 
-const TECHNOLOGIES_LINE_REGEX = /^technologies\s*:?/i;
+const TECHNOLOGIES_LINE_REGEX = /^(technologies|tech stack)\s*:?/i;
 
 const parseExperienceEntry: EntryParser = (lines): ParsedBulletEntry => {
   const [headerLine = "", roleLine = "", ...rest] = lines;

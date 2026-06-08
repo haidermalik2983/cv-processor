@@ -691,7 +691,7 @@ export default function Home() {
             const displayCompany = roleLine ? companyName.trim() : "";
             const normalizedLines = bullets.map((line) => line.trim()).filter(Boolean);
             const technologiesLineIndex = normalizedLines.findIndex((line) =>
-              /^technologies\s*:?/i.test(normalizeBulletText(line)),
+              /^(technologies|tech stack)\s*:?/i.test(normalizeBulletText(line)),
             );
             const technologiesLine =
               technologiesLineIndex >= 0
@@ -705,7 +705,10 @@ export default function Home() {
               techSeparatorIndex >= 0
                 ? technologiesLine.slice(0, techSeparatorIndex).trim()
                 : technologiesLine;
-            const techLabel = parsedTechLabel || "Technologies";
+            const techLabel =
+              !parsedTechLabel || parsedTechLabel === "Technologies"
+                ? "Tech Stack"
+                : parsedTechLabel;
             const techValue =
               techSeparatorIndex >= 0
                 ? technologiesLine.slice(techSeparatorIndex + 1).trim()
